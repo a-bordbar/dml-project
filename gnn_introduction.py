@@ -106,15 +106,15 @@ pos.update((n , (2, i-num_users))  for i, n in enumerate(range(num_users, num_us
 #     print("All nodes have positions assigned.")
 # #DEBUG END
 
-# plt.figure(figsize = (12, 8))
-# plt.title("A very crude plot of the graph")
-# nx.draw(B , pos= pos , with_labels= False , node_size = 20, node_color="blue", edge_color = "gray")
-# plt.show()
+plt.figure(figsize = (12, 8))
+plt.title("A very crude plot of the graph")
+nx.draw(B , pos= pos , with_labels= False , node_size = 20, node_color="blue", edge_color = "gray")
+plt.show()
 
-# Here, I make the plot a bit cleaner. '
-# First, I'm going to use the spring layout.
-# WARNING: This will take a long time to run. Also, the plot is still cluttered
-# SOLUTION: Limit the number of users and movies displayed
+# # Here, I make the plot a bit cleaner. '
+# # First, I'm going to use the spring layout.
+# # WARNING: This will take a long time to run. Also, the plot is still cluttered
+# # SOLUTION: Limit the number of users and movies displayed
 
 # pos_spring = nx.spring_layout(B,k= 0.5)
 # plt.figure(figsize=(12,8))
@@ -138,4 +138,85 @@ pos.update((n , (2, i-num_users))  for i, n in enumerate(range(num_users, num_us
 
 
 
-# Here, I limit the number of users and movies displayed.
+# # Here, I limit the number of users and movies displayed.
+
+# sample_size_users = 50  # Number of users to sample
+# sample_size_movies = 50  # Number of movies to sample
+
+# sample_users = set(range(sample_size_users))  # Sample first 50 users
+# sample_movies = set(range(num_users, num_users + sample_size_movies))  # Sample first 50 movies
+
+# B_sample = nx.Graph()
+# B_sample.add_nodes_from(sample_users , bipartite = 0)
+# B_sample.add_nodes_from(sample_movies , bipartite = 1)
+
+# #Add the new edges 
+# edges_sampled = [(user, num_users + movie) for user, movie in zip(user_nodes, movie_nodes)
+#                  if user in sample_users and num_users + movie in sample_movies]
+
+# B_sample.add_edges_from(edges_sampled)
+
+# # Draw the sampled bipartite graph
+
+# plt.figure(figsize=(12, 8))
+# user_color = "blue"
+# movie_color = "orange"
+# pos_sample = nx.spring_layout(B_sample)
+# nx.draw_networkx_nodes(B_sample, pos_sample, nodelist=sample_users, node_color=user_color, label='Users', node_size=30)
+# nx.draw_networkx_nodes(B_sample, pos_sample, nodelist=sample_movies, node_color=movie_color, label='Movies', node_size=30)
+# nx.draw_networkx_edges(B_sample, pos_sample, alpha=0.5)
+
+# plt.title('Sampled Bipartite Graph: Users and Movies (from MovieLens)')
+# plt.legend()
+# plt.axis('off')
+# plt.show()
+
+
+# Step 1: Sample edges directly (instead of sampling users/movies separately)
+num_edges = len(user_nodes)
+sample_size_edges = 50  # Number of edges to sample
+edge_sample_indices = torch.randperm(num_edges)[:sample_size_edges]  # Randomly sample 100 edges
+
+# Get the sampled user and movie nodes from the sampled edges
+sampled_user_nodes = [user_nodes[i] for i in edge_sample_indices]
+sampled_movie_nodes = [movie_nodes[i] for i in edge_sample_indices]
+
+# Step 2: Add the sampled edges to a new bipartite graph
+B_sample = nx.Graph()
+
+# Add user and movie nodes based on sampled edges
+num_users = data['user'].num_nodes
+B_sample.add_nodes_from(sampled_user_nodes, bipartite=0)  # Add users to set 0
+B_sample.add_nodes_from([num_users + movie for movie in sampled_movie_nodes], bipartite=1)  # Add movies to set 1
+
+# Add the edges from the sampled users and movies
+sampled_edges = [(user, num_users + movie) for user, movie in zip(sampled_user_nodes, sampled_movie_nodes)]
+B_sample.add_edges_from(sampled_edges)
+
+# Step 3: Verify that the sampled graph has nodes and edges
+print(f"Number of nodes in sampled graph: {B_sample.number_of_nodes()}")
+print(f"Number of edges in sampled graph: {B_sample.number_of_edges()}")
+
+# Step 4: Assign positions for visualization using spring layout
+pos_sample = nx.spring_layout(B_sample, k= 0.5)  #Use this for spring layout
+
+# pos_sample = {}  # Use this for a simple layout
+# pos_sample.update((n, (1, i)) for i, n in enumerate(sampled_user_nodes))  # Users on one side (x = 1)
+# pos_sample.update((n, (2, i)) for i, n in enumerate([num_users + movie for movie in sampled_movie_nodes]))  # Movies on the other side (x = 2)
+
+
+# Step 5: Draw the sampled bipartite graph with distinct colors for users and movies
+plt.figure(figsize=(10, 6))
+
+# Separate users and movies for coloring
+nx.draw_networkx_nodes(B_sample, pos_sample, nodelist=sampled_user_nodes, node_color='blue', label='Users', node_size=10)
+nx.draw_networkx_nodes(B_sample, pos_sample, nodelist=[num_users + movie for movie in sampled_movie_nodes], node_color='orange', label='Movies', node_size=10)
+
+# Draw edges
+nx.draw_networkx_edges(B_sample, pos_sample, alpha=0.5)
+
+# Add legend and display the graph
+plt.legend(['Users', 'Movies'])
+plt.title('Sampled Bipartite Graph: Users and Movies (from MovieLens)')
+plt.axis('off')
+plt.show()
