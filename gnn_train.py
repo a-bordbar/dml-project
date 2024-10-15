@@ -15,7 +15,6 @@ from torch_geometric.nn import SAGEConv, to_hetero
 import torch.nn.functional as F 
 from torch import Tensor
 import tqdm
-import pyg_lib
 
 params = {'legend.fontsize': 'medium',
           'figure.figsize': (10, 8),
@@ -133,117 +132,28 @@ train_data, val_data, test_data = transform(data)
 # Define seed edges:
 edge_label_index = train_data["user", "rates", "movie"].edge_label_index
 edge_label = train_data["user", "rates", "movie"].edge_label
-# train_loader = LinkNeighborLoader(
-#     data=train_data,
-#     num_neighbors=[20, 10],
-#     neg_sampling_ratio=2.0,
-#     edge_label_index=(("user", "rates", "movie"), edge_label_index),
-#     edge_label=edge_label,
-#     batch_size=128,
-#     shuffle=True,
-# )
+train_loader = LinkNeighborLoader(
+    data=train_data,
+    num_neighbors=[20, 10],
+    neg_sampling_ratio=2.0,
+    edge_label_index=(("user", "rates", "movie"), edge_label_index),
+    edge_label=edge_label,
+    batch_size=128,
+    shuffle=True,
+)
 
-import torch
-import random
-from torch.utils.data import DataLoader
+
 
 # Function to sample neighbors and negative samples manually
-class CustomLinkNeighborLoader:
-    def __init__(self, data, num_neighbors, neg_sampling_ratio, edge_label_index, edge_label, batch_size, shuffle=True):
-        self.data = data
-        self.num_neighbors = num_neighbors
-        self.neg_sampling_ratio = neg_sampling_ratio
-        self.edge_label_index = edge_label_index
-        self.edge_label = edge_label
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self.edge_index = data[edge_label_index[0]].edge_index
-
-    def _sample_neighbors(self, nodes):
-        """
-        Samples neighbors up to the specified number of neighbors per depth level.
-        """
-        sampled_neighbors = []
-        for node in nodes:
-            # Get all neighbors of this node
-            neighbors = self.edge_index[1][self.edge_index[0] == node].tolist()
-            # Sample `num_neighbors` randomly from the neighbors
-            sampled_neighbors.extend(random.sample(neighbors, min(len(neighbors), self.num_neighbors[0])))
-        return torch.tensor(sampled_neighbors)
-
-    def _negative_sampling(self, pos_edges):
-        """
-        Generates negative samples by randomly pairing users with movies they have not rated.
-        """
-        users, movies = pos_edges[0], pos_edges[1]
-        neg_edges = []
-        all_movies = set(range(self.data['movie'].num_nodes))
-        
-        for user in users:
-            rated_movies = set(movies[self.edge_index[0] == user].tolist())
-            non_rated_movies = list(all_movies - rated_movies)
-            sampled_negatives = random.sample(non_rated_movies, min(len(non_rated_movies), int(self.neg_sampling_ratio)))
-            neg_edges.extend([(user, movie) for movie in sampled_negatives])
-
-        return torch.tensor(neg_edges).T
-
-    def _get_batches(self, pos_edges):
-        """
-        Splits edges into batches for training.
-        """
-        total_edges = len(pos_edges[0])  # Number of edges in the positive edge list
-        indices = list(range(total_edges))
-
-        if self.shuffle:
-            random.shuffle(indices)
-
-        for i in range(0, total_edges, self.batch_size):
-            batch_indices = indices[i:i + self.batch_size]
-
-            # Index into the first and second elements of the tuple separately
-            batch_pos_edges = (pos_edges[0][batch_indices], pos_edges[1][batch_indices])
-
-            # Sample negative edges for this batch
-            batch_neg_edges = self._negative_sampling(batch_pos_edges)
-
-            yield batch_pos_edges, batch_neg_edges
-
-
-    def __iter__(self):
-        """
-        Yields batches of positive and negative edges for training.
-        """
-        pos_edges = self.edge_label_index
-        return self._get_batches(pos_edges)
 
 
 # Example of how to use the loader
-def custom_link_neighbor_loader_example():
-    # Assume 'train_data' and 'edge_label_index' are predefined
-    loader = CustomLinkNeighborLoader(
-        data=train_data,
-        num_neighbors=[20, 10],  # Neighbor sampling at two layers
-        neg_sampling_ratio=2.0,  # Negative sampling ratio
-        edge_label_index=(("user", "rates", "movie"), edge_label_index),
-        edge_label=edge_label,
-        batch_size=128,
-        shuffle=True
-    )
 
-    for batch_pos_edges, batch_neg_edges in loader:
-        print(f"Positive edges batch: {batch_pos_edges}")
-        print(f"Negative edges batch: {batch_neg_edges}")
+
+    
 
 # Call the function to test the loader
-train_loader = loader = CustomLinkNeighborLoader(
-        data=train_data,
-        num_neighbors=[20, 10],  # Neighbor sampling at two layers
-        neg_sampling_ratio=2.0,  # Negative sampling ratio
-        edge_label_index=(("user", "rates", "movie"), edge_label_index),
-        edge_label=edge_label,
-        batch_size=128,
-        shuffle=True
-    )
+
 
 
 class GNN(torch.nn.Module):
@@ -296,16 +206,14 @@ class Model(torch.nn.Module):
 model = Model(hidden_channels=64)
 
 
-for batch_pos_edges, batch_neg_edges in train_loader:
-    print(f"Positive edges batch: {batch_pos_edges}")
-    print(f"Negative edges batch: {batch_neg_edges}")
+
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: '{device}'")
 model = model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-for epoch in range(1, 6):
+for epoch in range(1, 50):
     total_loss = total_examples = 0
     for sampled_data in (train_loader):
         optimizer.zero_grad()
