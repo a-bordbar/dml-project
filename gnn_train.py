@@ -211,7 +211,7 @@ class Model(torch.nn.Module):
         )
         return pred
         
-model = Model(hidden_channels=64)
+model = Model(hidden_channels=32)
 
 
 
@@ -221,7 +221,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: '{device}'")
 model = model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-for epoch in range(1, 7):
+for epoch in range(1, 2):
     total_loss = total_examples = 0
     for sampled_data in (train_loader):
         optimizer.zero_grad()
@@ -267,3 +267,7 @@ ground_truth = torch.cat(ground_truths, dim=0).cpu().numpy()
 auc = roc_auc_score(ground_truth, pred)
 print()
 print(f"Validation AUC: {auc:.4f}")
+
+
+rmse_cf = np.sqrt(((ground_truth - pred) ** 2).mean())
+print(f"RMSE: {rmse_cf:.4f}")
