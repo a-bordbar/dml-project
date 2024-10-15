@@ -15,6 +15,7 @@ from torch_geometric.nn import SAGEConv, to_hetero
 import torch.nn.functional as F 
 from torch import Tensor
 import tqdm
+from sklearn.metrics import roc_auc_score
 
 params = {'legend.fontsize': 'medium',
           'figure.figsize': (10, 8),
@@ -142,7 +143,14 @@ train_loader = LinkNeighborLoader(
     shuffle=True,
 )
 
-
+val_loader = LinkNeighborLoader(
+    data=val_data,
+    num_neighbors=[20, 10],
+    edge_label_index=(("user", "rates", "movie"), val_data["user", "rates", "movie"].edge_label_index),
+    edge_label=val_data["user", "rates", "movie"].edge_label,
+    batch_size=128,
+    shuffle=False  # No need to shuffle validation data
+)
 
 # Function to sample neighbors and negative samples manually
 
@@ -213,7 +221,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: '{device}'")
 model = model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-for epoch in range(1, 50):
+for epoch in range(1, 7):
     total_loss = total_examples = 0
     for sampled_data in (train_loader):
         optimizer.zero_grad()
@@ -225,7 +233,37 @@ for epoch in range(1, 50):
         optimizer.step()
         total_loss += float(loss) * pred.numel()
         total_examples += pred.numel()
-    print(f"Epoch: {epoch:03d}, Loss: {total_loss / total_examples:.4f}")
     
-    
+    # Validation step (disable gradient computation)
+    model.eval()  # Set the model to evaluation mode
+    val_loss = 0
+    val_examples = 0
+    with torch.no_grad():  # Disable gradients for validation
+        for val_sampled_data in val_loader:  # Assuming val_loader is defined similarly to train_loader
+            val_sampled_data = val_sampled_data.to(device)
+            val_pred = model(val_sampled_data)
+            val_ground_truth = val_sampled_data["user", "rates", "movie"].edge_label
 
+            # Compute validation loss
+            loss = F.binary_cross_entropy_with_logits(val_pred, val_ground_truth)
+            
+            # Accumulate validation loss and examples
+            val_loss += float(loss) * val_pred.numel()
+            val_examples += val_pred.numel()
+
+    # Print validation loss
+    print(f"Epoch: {epoch:03d}, Training Loss :{total_loss / total_examples:.4f}  Validation Loss: {val_loss / val_examples:.4f}")
+    
+    
+preds = []
+ground_truths = []
+for sampled_data in tqdm.tqdm(val_loader):
+    with torch.no_grad():
+        sampled_data.to(device)
+        preds.append(model(sampled_data))
+        ground_truths.append(sampled_data["user", "rates", "movie"].edge_label)
+pred = torch.cat(preds, dim=0).cpu().numpy()
+ground_truth = torch.cat(ground_truths, dim=0).cpu().numpy()
+auc = roc_auc_score(ground_truth, pred)
+print()
+print(f"Validation AUC: {auc:.4f}")
