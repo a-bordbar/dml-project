@@ -33,8 +33,20 @@ train_matrix = coo_matrix((train_df['rating'],
                            (train_df['user_index'], train_df['movie_index'])),
                           shape=(num_users, num_movies))
 
+
+
+#Fill the missing values with the mean rating
+mean_movie_rating = np.mean(train_matrix.toarray(), axis=0)
+train_matrix_filled = train_matrix.toarray()
+mean_movie_rating = np.true_divide(train_matrix_filled.sum(0), (train_matrix_filled != 0).sum(0))
+
+
+for i in range(train_matrix_filled.shape[1]):  # Iterate over each movie (column)
+    train_matrix_filled[train_matrix_filled[:, i] == 0, i] = mean_movie_rating[i]
+
+
 # Apply SVD
-svd = TruncatedSVD(n_components=20, random_state=42)
+svd = TruncatedSVD(n_components=10, random_state=42)
 user_factors = svd.fit_transform(train_matrix)
 movie_factors = svd.components_.T
 
@@ -44,7 +56,7 @@ predicted_ratings = np.dot(user_factors, movie_factors.T)
 # Evaluate on test set
 # Ensure that all indices are within bounds and are integers
 threshold = 3.0
-test_df['binary_rating'] = (test_df['rating'] >= threshold).astype(int)  # 1 if rating >= 3, else 0
+test_df['binary_rating'] =(test_df['rating'] >= threshold).astype(int)  # 1 if rating >= 3, else 0
 
 def debug_lambda(row):
     try:
