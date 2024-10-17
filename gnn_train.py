@@ -16,7 +16,11 @@ from torch import Tensor
 import tqdm
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import precision_score, recall_score
+# https://colab.research.google.com/drive/1VQTBxJuty7aLMepjEYE-d7E9kjo51CA1?usp=sharing#scrollTo=Y9fonQcxt3do
 
+
+#This one seems to work better??
+# https://colab.research.google.com/github/Weimw/movielens-project/blob/main/CS224w_project.ipynb?source=post_page-----37da71f405a4--------------------------------#scrollTo=lxoenua1-u5r
 
 params = {'legend.fontsize': 'medium',
           'figure.figsize': (10, 8),
@@ -70,6 +74,11 @@ ratings_user_id = pd.merge(ratings_df['userId'], unique_user_id,
 ratings_user_id = torch.from_numpy(ratings_user_id['mappedID'].values)
 ratings_movie_id = pd.merge(ratings_df['movieId'], unique_movie_id,
                             left_on='movieId', right_on='movieId', how='left')
+
+
+
+
+
 ratings_movie_id = torch.from_numpy(ratings_movie_id['mappedID'].values)
 # With this, we are ready to construct our `edge_index` in COO format
 # following PyG semantics:
@@ -87,7 +96,11 @@ data["movie"].node_id = torch.arange(len(movies_df))
 # Add the node features and edge indices:
 data["movie"].x = movie_feat
 data["user", "rates", "movie"].edge_index = edge_index_user_to_movie
-data["user", "rates", "movie"].edge_rating = torch.from_numpy(ratings_df["rating"].values)
+data["user", "rates", "movie"].edge_rating = torch.from_numpy((ratings_df["rating"].values).astype(float))
+
+
+#Binary
+#data["user", "rates", "movie"].edge_rating = torch.from_numpy((ratings_df["rating"].values >=3).astype(float))
 
 # We also need to make sure to add the reverse edges from movies to users
 # in order to let a GNN be able to pass messages in both directions.
@@ -104,7 +117,7 @@ data = T.ToUndirected()(data)
 # We can leverage the `RandomLinkSplit()` transform for this from PyG:
 transform = T.RandomLinkSplit(
     num_val=0.1,
-    num_test=0.1,
+    num_test=0.2,
     disjoint_train_ratio=0.3,
     neg_sampling_ratio=2.0,
     add_negative_train_samples=False,
@@ -112,6 +125,7 @@ transform = T.RandomLinkSplit(
     rev_edge_types=("movie", "rev_rates", "user"), 
 )
 train_data, val_data, test_data = transform(data)
+
 
 
 # In the first hop, we sample at most 20 neighbors.
@@ -123,16 +137,16 @@ train_data, val_data, test_data = transform(data)
 # Define seed edges:
 edge_label_index = train_data["user", "rates", "movie"].edge_label_index
 edge_label = train_data["user", "rates", "movie"].edge_label
-edge_rating = train_data["user", "rates", "movie"].edge_rating
-edge_rating_val = val_data["user", "rates", "movie"].edge_rating
+edge_label_val = val_data["user", "rates", "movie"].edge_label
+
 
 train_loader = LinkNeighborLoader(
     data=train_data,
     num_neighbors=[20, 10],
     neg_sampling_ratio=2.0,
     edge_label_index=(("user", "rates", "movie"), edge_label_index),
-    edge_label=edge_rating,
-    batch_size=128,
+    edge_label=edge_label,
+    batch_size=32,
     shuffle=True,
 )
 
@@ -140,8 +154,8 @@ val_loader = LinkNeighborLoader(
     data=val_data,
     num_neighbors=[20, 10],
     edge_label_index=(("user", "rates", "movie"), val_data["user", "rates", "movie"].edge_label_index),
-    edge_label=edge_rating,
-    batch_size=128,
+    edge_label=edge_label_val,
+    batch_size=32,
     shuffle=False  # No need to shuffle validation data
 )
 
@@ -162,10 +176,14 @@ class GNN(torch.nn.Module):
         super().__init__()
         self.conv1 = SAGEConv(hidden_channels, hidden_channels)
         self.conv2 = SAGEConv(hidden_channels, hidden_channels)
+        #self.conv3 = SAGEConv(hidden_channels, hidden_channels)
+        #self.conv4 = SAGEConv(hidden_channels, hidden_channels)
         
     def forward(self, x, edge_index):
         x = F.relu(self.conv1(x, edge_index))
         x = self.conv2(x, edge_index)
+        #x = self.conv3(x, edge_index)
+        #x = self.conv4(x, edge_index)
         return x
 
 class Classifier(torch.nn.Module):
@@ -174,6 +192,7 @@ class Classifier(torch.nn.Module):
         edge_feat_user = x_user[edge_label_index[0]]
         edge_feat_movie = x_movie[edge_label_index[1]]
         # Apply dot-product to get a prediction per supervision edge:
+        
         return (edge_feat_user * edge_feat_movie).sum(dim=-1)
 
 class Model(torch.nn.Module):
@@ -204,7 +223,7 @@ class Model(torch.nn.Module):
         )
         return pred
         
-model = Model(hidden_channels=128)
+model = Model(hidden_channels=1)
 
 
 
@@ -213,15 +232,15 @@ threshold = 0.0
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: '{device}'")
 model = model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-for epoch in range(1, 6):
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+for epoch in range(1, 3):
     total_loss = total_examples = 0
     for sampled_data in (train_loader):
         optimizer.zero_grad()
         sampled_data.to(device)
         pred = model(sampled_data)
         ground_truth = sampled_data["user", "rates", "movie"].edge_label
-        loss = F.mse_loss(pred, ground_truth.type(torch.float))
+        loss = F.binary_cross_entropy_with_logits(pred, ground_truth.type(torch.float))
         loss.backward()
         optimizer.step()
         total_loss += float(loss) * pred.numel()
@@ -238,7 +257,7 @@ for epoch in range(1, 6):
             val_ground_truth = val_sampled_data["user", "rates", "movie"].edge_label
 
             # Compute validation loss
-            loss = F.mse_loss(val_pred, val_ground_truth)
+            loss = F.binary_cross_entropy_with_logits(val_pred, val_ground_truth)
             
             # Accumulate validation loss and examples
             val_loss += float(loss) * val_pred.numel()
