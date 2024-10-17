@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import torch
 from torch import Tensor, nn, optim
-from torch_geometric.data import download_url, extract_zip
+#from torch_geometric.data import download_url, extract_zip
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch_geometric.utils import structured_negative_sampling
@@ -201,7 +201,7 @@ def bpr_loss(users_emb, user_emb_0, pos_emb, pos_emb_0, neg_emb, neg_emb_0, lamb
     neg_scores = torch.sum(users_emb * neg_emb, dim=1)
     losses = -torch.log(torch.sigmoid(pos_scores - neg_scores))
     loss = torch.mean(losses) + lambda_val * \
-    (torch.norm(users_emb_0) + torch.norm(pos_emb_0) + torch.norm(neg_emb_0))
+    (torch.norm(user_emb_0) + torch.norm(pos_emb_0) + torch.norm(neg_emb_0))
     
     return loss
 
@@ -322,7 +322,7 @@ config = {
     'lr_decay': 0.9,
     'topK': 20,
     'lambda': 1e-6,
-    'hidden_dim': 32,
+    'hidden_dim': 64,
     'num_layer': 3,
 }
 
