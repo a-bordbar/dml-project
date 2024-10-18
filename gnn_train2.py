@@ -62,7 +62,7 @@ def preprocessing(movie_df, rating_df):
   # Here, we decide that the movies that are given a rating of >= 4 are considered "good"
   # and denote a positive interaction between the corresponding user and movie.
   ratings = rating_df['rating'].values #has shape [100836, ]
-  recommend_bool = torch.from_numpy(ratings).view(-1, 1).to(torch.long) >= 4
+  recommend_bool = torch.from_numpy(ratings).view(-1, 1).to(torch.long) >= 3
   
   
   # Then, we put the each corresponding user and movie in a  list. 
@@ -146,6 +146,86 @@ def mini_batch_sample(batch_size, edge_index):
     user_indices, pos_item_indices, neg_item_indices = batch[0], batch[1], batch[2]
     return user_indices, pos_item_indices, neg_item_indices
 
+
+from torch_geometric.nn import SAGEConv
+from torch_geometric.nn import GCNConv, GATConv
+
+import torch.nn.functional as F
+
+class GraphSAGEModel(nn.Module):
+    def __init__(self, num_users, num_items, hidden_dim, num_layers):
+        super(GraphSAGEModel, self).__init__()
+        self.num_users = num_users
+        self.num_items = num_items
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+
+        # Embedding layers for users and items
+        self.users_emb = nn.Embedding(self.num_users, hidden_dim)
+        self.items_emb = nn.Embedding(self.num_items, hidden_dim)
+
+        nn.init.normal_(self.users_emb.weight, std=0.01)
+        nn.init.normal_(self.items_emb.weight, std=0.01)
+
+        # Define GraphSAGE layers
+        self.convs = nn.ModuleList()
+        for _ in range(num_layers):
+            self.convs.append(GCNConv(hidden_dim, hidden_dim))
+
+    def forward(self, edge_index):
+        x_user = self.users_emb.weight
+        x_item = self.items_emb.weight
+        
+        # Concatenate user and item embeddings
+        x = torch.cat([x_user, x_item], dim=0)
+
+        # Perform neighborhood aggregation using SAGEConv layers
+        for conv in self.convs:
+            #x = F.relu(conv(x, edge_index))  #for SAGEConv
+            x = conv(x, edge_index)
+        
+        # Separate back into user and item embeddings
+        users_emb, items_emb = x[:self.num_users], x[self.num_users:]
+        
+        return users_emb, self.users_emb.weight, items_emb, self.items_emb.weight
+    
+    
+
+class GAT(nn.Module):
+    def __init__(self, num_users, num_items, hidden_dim, num_layers):
+        super(GAT, self).__init__()
+        self.num_users = num_users
+        self.num_items = num_items
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+
+        # Embedding layers for users and items
+        self.users_emb = nn.Embedding(self.num_users, hidden_dim)
+        self.items_emb = nn.Embedding(self.num_items, hidden_dim)
+
+        nn.init.normal_(self.users_emb.weight, std=0.1)
+        nn.init.normal_(self.items_emb.weight, std=0.1)
+
+        # Define GraphSAGE layers
+        self.convs = nn.ModuleList()
+        for _ in range(num_layers):
+            self.convs.append(GATConv(hidden_dim, hidden_dim, heads=1, concat=True))
+
+    def forward(self, edge_index):
+        x_user = self.users_emb.weight
+        x_item = self.items_emb.weight
+        
+        # Concatenate user and item embeddings
+        x = torch.cat([x_user, x_item], dim=0)
+
+        # Perform neighborhood aggregation using SAGEConv layers
+        for conv in self.convs:
+            x = F.softmax(conv(x, edge_index))
+        
+        # Separate back into user and item embeddings
+        users_emb, items_emb = x[:self.num_users], x[self.num_users:]
+        
+        return users_emb, self.users_emb.weight, items_emb, self.items_emb.weight
 
 
 # defines LightGCN model
@@ -341,12 +421,12 @@ config = {
     'batch_size': 256,
     'num_epoch': 50,
     'epoch_size': 200,
-    'lr': 1e-3,
+    'lr': 1e-4,  #1e-4 for SAGEconv
     'lr_decay': 0.9,
     'topK': 20,
     'lambda': 1e-6,
     'hidden_dim': 64,
-    'num_layer': 3,
+    'num_layer':2,
 }
 
 
@@ -354,7 +434,10 @@ config = {
 # setup
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-model = LightGCN(num_users, num_movies, config['hidden_dim'], config['num_layer'])
+#model = LightGCN(num_users, num_movies, config['hidden_dim'], config['num_layer'])
+
+model = GraphSAGEModel(num_users, num_movies, config['hidden_dim'], config['num_layer'])
+
 model = model.to(device)
 model.train()
 
