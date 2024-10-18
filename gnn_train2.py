@@ -15,7 +15,8 @@ from torch_sparse import SparseTensor, matmul
 # Read the dataset from the directory
 movies_df = pd.read_csv("data/movies.csv",index_col='movieId')
 ratings_df = pd.read_csv("data/ratings.csv")
-
+# The "ratings.csv" contains "userId, movieId, and ratigs". 
+# The "movies.csv" file contains "movieId" and the name of the movies.
 print("The dataframes were imported successfully!")
 
 
@@ -38,21 +39,37 @@ def preprocessing(movie_df, rating_df):
   
 
   # create mapping to continous range
+  # First, we map the indices of the movies from 0 to num_movies -1. 
   movie_mapping = {idx: i for i, idx in enumerate(movie_df.index.unique())}
+  
+  # Then we do the same thing for the user (userId)
   user_mapping = {idx: i for i, idx in enumerate(rating_df.index.unique())}
+  
+  # We extract the number of users and movies 
   num_users, num_movies = len(rating_df.index.unique()), len(movie_df.index.unique())
 
   edge_index = None
+  
+  # For each rating, extract the users and movies corresponding to it. 
+  # For example, we see that user 1 has given a few ratings, and so on.
   users = [user_mapping[idx] for idx in rating_df['userId']]
+  
+  
+  # Assume that user 1 has given ratings to the movies [0, 2 , 5, ...]. 
+  # The "movies" variable stores the movie indices([0,2, 5, ...]) 
   movies = [movie_mapping[idx] for idx in rating_df['movieId']]
 
-  # filter for edges with a high rating
-  ratings = rating_df['rating'].values
+  # Here, we decide that the movies that are given a rating of >= 4 are considered "good"
+  # and denote a positive interaction between the corresponding user and movie.
+  ratings = rating_df['rating'].values #has shape [100836, ]
   recommend_bool = torch.from_numpy(ratings).view(-1, 1).to(torch.long) >= 4
-
+  
+  
+  # Then, we put the each corresponding user and movie in a  list. 
+  # This will make up the edges of the graph.
   edge_index = [[],[]]
   for i in range(recommend_bool.shape[0]):
-    if recommend_bool[i]:
+    if recommend_bool[i]:   # We filter out the negative interactions here.
       edge_index[0].append(users[i])
       edge_index[1].append(movies[i])
     
@@ -72,10 +89,16 @@ movie_df, rating_df = preprocessing(movies_df, ratings_df)
 num_ratings = edge_index.shape[1]
 rating_indices = np.arange(num_ratings)
 
+
+# Now, we split the edge indices to train and test + validation sets.
 indices_train, indices_val_test = train_test_split(rating_indices, test_size = 0.2, random_state = 42)
+
+# We split the test + validation set into test and validation sets.
 indices_val, indices_test = train_test_split(indices_val_test, test_size = 0.5, random_state = 42)
 
 # slice the whole dataset by split indices, then convert to SparseTensor for later training
+
+
 def generate_edge(edge_indices):
   '''
   Paramters:
