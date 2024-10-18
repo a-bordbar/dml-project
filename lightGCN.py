@@ -20,7 +20,7 @@ from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch_geometric.utils import structured_negative_sampling
 from torch_sparse import SparseTensor, matmul
 
-
+# Importing the helper functions
 from utils import *
 
 # Read the "movies.csv" and "ratings.csv" and store them in two dataframes. 
@@ -36,6 +36,7 @@ print("The dataset was imported successfully!")
 
 edge_index, num_users, num_movies, movie_mapping, user_mapping = data_preprocessing(movies_df, ratings_df)
 
+print("The data has been pre-processed!")
 
 #Now we split the edges into train and test + val sets. 
 # Extract the number of ratings
@@ -48,8 +49,20 @@ rIdx = np.arange(num_ratings)
 train_index , test_val_index = train_test_split(rIdx, test_size=0.2, random_state = 69 )
 val_index , test_index = train_test_split(test_val_index, test_size=0.5, random_state = 69 )
 
+# Now that I have the training, validation, and test edge indices, I just need to create 
+# a sparseTensor object that represents the adjacency matrix of the graph.
+# The nodes do not change. However, we have three graphs with different sets of edges.
+# This is done using "sparse_tensor_from_edgeIdx" functions, which can be found in "utils.py"
+edgeIdx_train , edgeIdx_train_sparse = sparse_tensor_from_edgeIdx(train_index, edge_index , num_users, num_movies)
+edgeIdx_val , edgeIdx_val_sparse = sparse_tensor_from_edgeIdx(train_index, edge_index , num_users, num_movies)
+edgeIdx_test , edgeIdx_test_sparse = sparse_tensor_from_edgeIdx(train_index, edge_index , num_users, num_movies)
 
-print("The data has been pre-processed!")
-  
+
+# Now I perform negative sampling on the training edges
+edges = structured_negative_sampling(edgeIdx_train)
+edges = torch.stack(edges, dim=0)
+
+
+
 pass
     

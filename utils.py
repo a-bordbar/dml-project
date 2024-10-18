@@ -69,3 +69,29 @@ def data_preprocessing(movie_dataframe, rating_dataframe):
     return edge_index, num_users, num_movies, movie_mapping, user_mapping
 
 
+def sparse_tensor_from_edgeIdx(edge_index_train, edge_index, num_users, num_movies):
+    edgeIdx_new = edge_index [:, edge_index_train]
+    num_nodes = num_users + num_movies
+    sparse_edgeIdx = SparseTensor(row = edgeIdx_new[0],
+                                  col = edgeIdx_new[1],
+                                  sparse_sizes= (num_nodes, num_nodes)
+                                  )
+    return edgeIdx_new, sparse_edgeIdx
+  
+
+def mini_batch_sample(batch_size, adjacency_matrix):
+    """
+    Input: 
+      Adjacency matrix of a graph.
+      
+    Outputs: 
+      user_induces = randomly sampled edges
+      pos_item_indices = positive edges
+      neg_item_indices = negative edges
+    """
+    edges = structured_negative_sampling(adjacency_matrix)
+    edges = torch.stack(edges, dim=0)
+    indices = torch.randperm(edges.shape[1])[:batch_size]
+    batch = edges[:, indices]
+    user_indices, pos_item_indices, neg_item_indices = batch[0], batch[1], batch[2]
+    return user_indices, pos_item_indices, neg_item_indices
