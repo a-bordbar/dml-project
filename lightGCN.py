@@ -1,25 +1,22 @@
 # © Alireza Bordbar
 # bordbar@chalmers.se
 
-# This script implements a LightGCN for recommendation on MovieLens 100k dataset.
-# LighGCN is introduced in this paper: https://arxiv.org/abs/2002.02126
+# This script implements a GNN for recommendation on MovieLens dataset.
 
 
 # ---------------
+#benchmark : https://github.com/lxbanov/recsys-movielens100k
+from torch import Tensor, nn, optim
+from torch_geometric.nn.conv import MessagePassing
+from torch_geometric.nn.conv.gcn_conv import gcn_norm
+from torch_geometric.utils import structured_negative_sampling
+from torch_sparse import SparseTensor, matmul
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import random
 from sklearn.model_selection import train_test_split
-from tqdm import tqdm
 import torch
-from torch import Tensor, nn, optim
-#from torch_geometric.data import download_url, extract_zip
-from torch_geometric.nn.conv import MessagePassing
-from torch_geometric.nn.conv.gcn_conv import gcn_norm
-from torch_geometric.utils import structured_negative_sampling
-from torch_sparse import SparseTensor, matmul
-
 # Importing the helper functions
 from utils import *
 
@@ -63,6 +60,26 @@ edges = structured_negative_sampling(edgeIdx_train)
 edges = torch.stack(edges, dim=0)
 
 
+
+def precision_recall(GNN_model, edgeIdx, sparse_edgeIdx, maskIdx, k, reg_coef):
+    '''
+    This function calculates the performance metrics for the model:
+    Precision@k 
+    Recall@k
+    '''
+    
+    
+    #First, I get the user and movie embeddings from the model.
+    user_embedding, user_embedding_initial, movie_embedding,\
+    movie_embedding_initial = GNN_model.forward(sparse_edgeIdx)
+    
+    edges_with_negative_sampling = structured_negative_sampling(edgeIdx, contains_neg_self_loops=False)
+    
+    userIdx, posIdx, negIdx = edges_with_negative_sampling[0], edges_with_negative_sampling[1], edges_with_negative_sampling[2]
+    loss = bpr(user_embedding[userIdx], user_embedding_initial, movie_embedding[posIdx], movie_embedding_initial[posIdx],
+                    movie_embedding[negIdx], movie_embedding[negIdx], reg_coef).item()
+    
+    user_embedding_weight = 
 
 pass
     

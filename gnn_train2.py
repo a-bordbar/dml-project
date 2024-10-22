@@ -182,7 +182,7 @@ class GraphSAGEModel(nn.Module):
         # Perform neighborhood aggregation using SAGEConv layers
         for conv in self.convs:
             #x = F.relu(conv(x, edge_index))  #for SAGEConv
-            x = conv(x, edge_index)
+            x = conv(x, edge_index)  #For GCNConv
         
         # Separate back into user and item embeddings
         users_emb, items_emb = x[:self.num_users], x[self.num_users:]

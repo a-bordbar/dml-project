@@ -12,7 +12,8 @@ import pandas as pd
 import random
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-
+from torch_geometric.nn import SAGEConv
+from torch_geometric.nn import GCNConv, GATConv
 
 
 
@@ -142,3 +143,63 @@ def bpr(user_embedding, user_embedding_initial, positive_embedding,
     loss = torch.mean(loss) + reg_coef * \
     (torch.norm(user_embedding_initial) + torch.norm(positive_embedding_initial) + torch.norm(negative_embedding_initial))
     return loss 
+
+
+class GAT(nn.Module):
+    def __init__(self, num_users, num_items, hidden_dim, num_layers):
+        super(GAT, self).__init__()
+        self.num_users = num_users
+        self.num_items = num_items
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+
+        # Embedding layers for users and items
+        self.users_emb = nn.Embedding(self.num_users, hidden_dim)
+        self.items_emb = nn.Embedding(self.num_items, hidden_dim)
+
+        nn.init.normal_(self.users_emb.weight, std=0.1)
+        nn.init.normal_(self.items_emb.weight, std=0.1)
+
+        # Define GraphSAGE layers
+        self.convs = nn.ModuleList()
+        for _ in range(num_layers):
+            self.convs.append(GATConv(hidden_dim, hidden_dim, heads=1, concat=True))
+            
+            
+
+class GraphSAGEModel(nn.Module):
+    def __init__(self, num_users, num_items, hidden_dim, num_layers):
+        super(GraphSAGEModel, self).__init__()
+        self.num_users = num_users
+        self.num_items = num_items
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+
+        # Embedding layers for users and items
+        self.users_emb = nn.Embedding(self.num_users, hidden_dim)
+        self.items_emb = nn.Embedding(self.num_items, hidden_dim)
+
+        nn.init.normal_(self.users_emb.weight, std=0.01)
+        nn.init.normal_(self.items_emb.weight, std=0.01)
+
+        # Define GraphSAGE layers
+        self.convs = nn.ModuleList()
+        for _ in range(num_layers):
+            self.convs.append(GCNConv(hidden_dim, hidden_dim))
+
+    def forward(self, edge_index):
+        x_user = self.users_emb.weight
+        x_item = self.items_emb.weight
+        
+        # Concatenate user and item embeddings
+        x = torch.cat([x_user, x_item], dim=0)
+
+        # Perform neighborhood aggregation using SAGEConv layers
+        for conv in self.convs:
+            #x = F.relu(conv(x, edge_index))  #for SAGEConv
+            x = conv(x, edge_index)  #For GCNConv
+        
+        # Separate back into user and item embeddings
+        users_emb, items_emb = x[:self.num_users], x[self.num_users:]
+        
+        return users_emb, self.users_emb.weight, items_emb, self.items_emb.weight
