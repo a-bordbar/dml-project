@@ -43,43 +43,104 @@ rIdx = np.arange(num_ratings)
 
 # 80% of the data is used for training; the rest is used for test and validation.
 # For reproducibility, I set the random_state to 69.
-train_index , test_val_index = train_test_split(rIdx, test_size=0.2, random_state = 69 )
-val_index , test_index = train_test_split(test_val_index, test_size=0.5, random_state = 69 )
+train_index , test_val_index = train_test_split(rIdx, test_size=0.2, random_state = 42 )
+val_index , test_index = train_test_split(test_val_index, test_size=0.5, random_state = 42 )
 
 # Now that I have the training, validation, and test edge indices, I just need to create 
 # a sparseTensor object that represents the adjacency matrix of the graph.
 # The nodes do not change. However, we have three graphs with different sets of edges.
 # This is done using "sparse_tensor_from_edgeIdx" functions, which can be found in "utils.py"
 edgeIdx_train , edgeIdx_train_sparse = sparse_tensor_from_edgeIdx(train_index, edge_index , num_users, num_movies)
-edgeIdx_val , edgeIdx_val_sparse = sparse_tensor_from_edgeIdx(train_index, edge_index , num_users, num_movies)
-edgeIdx_test , edgeIdx_test_sparse = sparse_tensor_from_edgeIdx(train_index, edge_index , num_users, num_movies)
+edgeIdx_val , edgeIdx_val_sparse = sparse_tensor_from_edgeIdx(val_index, edge_index , num_users, num_movies)
+edgeIdx_test , edgeIdx_test_sparse = sparse_tensor_from_edgeIdx(test_index, edge_index , num_users, num_movies)
 
 
 # Now I perform negative sampling on the training edges
 edges = structured_negative_sampling(edgeIdx_train)
 edges = torch.stack(edges, dim=0)
 
+#Here, I set up the simulation parameters
+#----   ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    
+batch_size = 256
+num_epochs = 50 
+epoch_iterations = 200
+learning_rate = 1e-3
+exponentional_decay = 0.9
+k = 20 #for calculating "top-k" performance 
+regularization_factor = 1e-6 # for BPR loss
+hidden_dimension = 64 # Hidden dimension of the embedding layer 
+num_layers = 2
+#----   ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    
+
+#Set up the device 
+device = torch.device("cude" if torch.cuda.is_available() else "cpu")
+
+# Instantiate the model 
+model = LightGCN(num_users , num_movies, hidden_dimension, num_layers)
+
+# Transfer the model and the data to the device 
+model.to(device)
+
+edge_index = edge_index.to(device)
+edgeIdx_train = edgeIdx_train.to(device)
+edgeIdx_train_sparse = edgeIdx_train_sparse.to(device)
+
+edgeIdx_val = edgeIdx_val.to(device)
+edgeIdx_val_sparse = edgeIdx_val_sparse.to(device)
+# Put the model in train mode 
 
 
-def precision_recall(GNN_model, edgeIdx, sparse_edgeIdx, maskIdx, k, reg_coef):
-    '''
-    This function calculates the performance metrics for the model:
-    Precision@k 
-    Recall@k
-    '''
-    
-    
-    #First, I get the user and movie embeddings from the model.
-    user_embedding, user_embedding_initial, movie_embedding,\
-    movie_embedding_initial = GNN_model.forward(sparse_edgeIdx)
-    
-    edges_with_negative_sampling = structured_negative_sampling(edgeIdx, contains_neg_self_loops=False)
-    
-    userIdx, posIdx, negIdx = edges_with_negative_sampling[0], edges_with_negative_sampling[1], edges_with_negative_sampling[2]
-    loss = bpr(user_embedding[userIdx], user_embedding_initial, movie_embedding[posIdx], movie_embedding_initial[posIdx],
-                    movie_embedding[negIdx], movie_embedding[negIdx], reg_coef).item()
-    
-    user_embedding_weight = 
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
+#set up learning rate decay 
+scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma = exponentional_decay)
+
+# I store the train and validation losses in a list in order to plot them later
+
+train_losses = []
+val_losses = []
+
+model.train()
+for epoch in range(num_epochs):
+    for iteration in range(epoch_iterations):
+        # Forward pass 
+        users_emb, users_emb_0, items_emb, items_emb_0 = \
+        model.forward(edgeIdx_train_sparse)
+        
+        # Create mini-batches
+        user_indices, pos_indices, neg_indices = \
+        mini_batch_sample(batch_size, edgeIdx_train)
+        
+        user_indices = user_indices.to(device)
+        pos_indices = pos_indices.to(device)
+        neg_indices = neg_indices.to(device)
+    
+        users_emb, users_emb_0 = users_emb[user_indices], users_emb_0[user_indices]
+        pos_emb, pos_emb_0 = items_emb[pos_indices], items_emb_0[pos_indices]
+        neg_emb, neg_emb_0 = items_emb[neg_indices], items_emb_0[neg_indices]
+        
+        
+         # loss computation
+        loss = bpr_loss(users_emb, users_emb_0, 
+                    pos_emb, pos_emb_0,
+                    neg_emb, neg_emb_0,
+                    regularization_factor)
+        
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+    model.eval()
+    val_loss, recall, precision = evaluation(model, edgeIdx_val, 
+                                        edgeIdx_val_sparse, 
+                                        [edgeIdx_train], 
+                                        k,
+                                        regularization_factor)
+    print('Epoch {:d}: train_loss: {:.4f}, val_loss: {:.4f}, recall: {:.4f}, precision: {:.4f}'\
+    .format(epoch, loss, val_loss, recall, precision))
+    train_losses.append(loss.item())
+    val_losses.append(val_loss)
+    scheduler.step()
 pass
     

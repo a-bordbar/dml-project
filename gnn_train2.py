@@ -421,7 +421,7 @@ config = {
     'batch_size': 256,
     'num_epoch': 50,
     'epoch_size': 200,
-    'lr': 1e-4,  #1e-4 for SAGEconv
+    'lr': 1e-3,  #1e-4 for SAGEconv
     'lr_decay': 0.9,
     'topK': 20,
     'lambda': 1e-6,
@@ -434,9 +434,9 @@ config = {
 # setup
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-#model = LightGCN(num_users, num_movies, config['hidden_dim'], config['num_layer'])
+model = LightGCN(num_users, num_movies, config['hidden_dim'], config['num_layer'])
 
-model = GraphSAGEModel(num_users, num_movies, config['hidden_dim'], config['num_layer'])
+#model = GraphSAGEModel(num_users, num_movies, config['hidden_dim'], config['num_layer'])
 
 model = model.to(device)
 model.train()
