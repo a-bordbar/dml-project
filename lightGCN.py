@@ -1,5 +1,4 @@
-# © Alireza Bordbar
-# bordbar@chalmers.se
+
 
 # This script implements a GNN for recommendation on MovieLens dataset.
 
@@ -62,9 +61,9 @@ edges = torch.stack(edges, dim=0)
 #Here, I set up the simulation parameters
 #----   ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    ----    
 batch_size = 256
-num_epochs = 50 
+num_epochs = 50
 epoch_iterations = 200
-learning_rate = 1e-3
+learning_rate = 1e-4  #Set this to 1e-4 for SageCONV
 exponentional_decay = 0.9
 k = 20 #for calculating "top-k" performance 
 regularization_factor = 1e-6 # for BPR loss
@@ -76,7 +75,11 @@ num_layers = 2
 device = torch.device("cude" if torch.cuda.is_available() else "cpu")
 
 # Instantiate the model 
-model = LightGCN(num_users , num_movies, hidden_dimension, num_layers)
+# Choose one Model structure 
+#model = LightGCN(num_users , num_movies, hidden_dimension, num_layers)
+#model = GraphSAGEModel(num_users , num_movies, hidden_dimension, num_layers)
+model = GCN(num_users , num_movies, hidden_dimension, num_layers)
+
 
 # Transfer the model and the data to the device 
 model.to(device)
@@ -150,5 +153,27 @@ for epoch in range(num_epochs):
     train_losses.append(loss.item())
     val_losses.append(val_loss)
     scheduler.step()
+
+
+#Test set evaluation
+
+model.eval()
+test_sparse_edge_index = edgeIdx_test_sparse.to(device)
+test_edge_index = edgeIdx_test.to(device)
+precision_test , recall_test , loss_test = precision_recall(model, 
+                test_edge_index, 
+                test_sparse_edge_index, 
+                [edgeIdx_train, edgeIdx_val],
+                k,
+                regularization_factor)
+print('Test loss: {:.4f}, Test recall: {:.4f}, Test precision: {:.4f}'\
+        .format(loss_test, recall_test, precision_test))
+
+
+#Save the outputs to a file.
+output_files = {"num_epoch": num_epochs , "train_losses": train_losses , "val_losses":val_losses, "test_loss":loss_test,
+                "test_precisioin" : precision_test, "test_recall":recall_test}
+torch.save(output_files, "./outputs/GCN.pt")
+loaded_data = torch.load("./outputs/GCN.pt")
 pass
     

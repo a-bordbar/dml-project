@@ -168,28 +168,29 @@ class GAT(nn.Module):
             
 
 class GraphSAGEModel(nn.Module):
-    def __init__(self, num_users, num_items, hidden_dim, num_layers):
+    def __init__(self, num_users, num_movies, hidden_dim, num_layers):
         super(GraphSAGEModel, self).__init__()
+        
+
         self.num_users = num_users
-        self.num_items = num_items
+        self.num_movies = num_movies
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        
+        self.user_embedding = nn.Embedding(self.num_users, self.hidden_dim)
+        self.movie_embedding = nn.Embedding(self.num_movies, self.hidden_dim)
 
-        # Embedding layers for users and items
-        self.users_emb = nn.Embedding(self.num_users, hidden_dim)
-        self.items_emb = nn.Embedding(self.num_items, hidden_dim)
-
-        nn.init.normal_(self.users_emb.weight, std=0.01)
-        nn.init.normal_(self.items_emb.weight, std=0.01)
+        nn.init.normal_(self.user_embedding.weight, std=0.01)
+        nn.init.normal_(self.movie_embedding.weight, std=0.01)
 
         # Define GraphSAGE layers
         self.convs = nn.ModuleList()
         for _ in range(num_layers):
-            self.convs.append(GCNConv(hidden_dim, hidden_dim))
+            self.convs.append(SAGEConv(hidden_dim, hidden_dim))
 
     def forward(self, edge_index):
-        x_user = self.users_emb.weight
-        x_item = self.items_emb.weight
+        x_user = self.user_embedding.weight
+        x_item = self.movie_embedding.weight
         
         # Concatenate user and item embeddings
         x = torch.cat([x_user, x_item], dim=0)
@@ -200,11 +201,48 @@ class GraphSAGEModel(nn.Module):
             x = conv(x, edge_index)  #For GCNConv
         
         # Separate back into user and item embeddings
-        users_emb, items_emb = x[:self.num_users], x[self.num_users:]
+        users_emb, movies_emb = x[:self.num_users], x[self.num_users:]
         
-        return users_emb, self.users_emb.weight, items_emb, self.items_emb.weight
+        return users_emb, self.user_embedding.weight, movies_emb, self.movie_embedding.weight
 
 
+class GCN(nn.Module):
+    def __init__(self, num_users, num_movies, hidden_dim, num_layers):
+        super(GCN, self).__init__()
+        
+
+        self.num_users = num_users
+        self.num_movies = num_movies
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        
+        self.user_embedding = nn.Embedding(self.num_users, self.hidden_dim)
+        self.movie_embedding = nn.Embedding(self.num_movies, self.hidden_dim)
+
+        nn.init.normal_(self.user_embedding.weight, std=0.01)
+        nn.init.normal_(self.movie_embedding.weight, std=0.01)
+
+        # Define GraphSAGE layers
+        self.convs = nn.ModuleList()
+        for _ in range(num_layers):
+            self.convs.append(GCNConv(hidden_dim, hidden_dim))
+
+    def forward(self, edge_index):
+        x_user = self.user_embedding.weight
+        x_item = self.movie_embedding.weight
+        
+        # Concatenate user and item embeddings
+        x = torch.cat([x_user, x_item], dim=0)
+
+        # Perform neighborhood aggregation using SAGEConv layers
+        for conv in self.convs:
+            #x = F.relu(conv(x, edge_index))  #for SAGEConv
+            x = conv(x, edge_index)  #For GCNConv
+        
+        # Separate back into user and item embeddings
+        users_emb, movies_emb = x[:self.num_users], x[self.num_users:]
+        
+        return users_emb, self.user_embedding.weight, movies_emb, self.movie_embedding.weight
 
 
 
