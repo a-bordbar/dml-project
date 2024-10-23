@@ -121,7 +121,7 @@ for epoch in range(num_epochs):
         
         
          # loss computation
-        loss = bpr_loss(users_emb, users_emb_0, 
+        loss = bpr(users_emb, users_emb_0, 
                     pos_emb, pos_emb_0,
                     neg_emb, neg_emb_0,
                     regularization_factor)
@@ -132,11 +132,19 @@ for epoch in range(num_epochs):
         optimizer.step()
         
     model.eval()
-    val_loss, recall, precision = evaluation(model, edgeIdx_val, 
+    # val_loss, recall, precision = evaluation(model, edgeIdx_val, 
+    #                                     edgeIdx_val_sparse, 
+    #                                     [edgeIdx_train], 
+    #                                     k,
+    #                                     regularization_factor)
+    
+    precision , recall , val_loss = precision_recall(model, edgeIdx_val, 
                                         edgeIdx_val_sparse, 
                                         [edgeIdx_train], 
                                         k,
                                         regularization_factor)
+    
+    
     print('Epoch {:d}: train_loss: {:.4f}, val_loss: {:.4f}, recall: {:.4f}, precision: {:.4f}'\
     .format(epoch, loss, val_loss, recall, precision))
     train_losses.append(loss.item())
