@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from torch_geometric.nn import SAGEConv
 from torch_geometric.nn import GCNConv, GATConv
+import torch.nn.functional as F
 
 
 
@@ -197,8 +198,8 @@ class GraphSAGEModel(nn.Module):
 
         # Perform neighborhood aggregation using SAGEConv layers
         for conv in self.convs:
-            #x = F.relu(conv(x, edge_index))  #for SAGEConv
-            x = conv(x, edge_index)  #For GCNConv
+            x = F.relu(conv(x, edge_index))  #for SAGEConv
+            #x = conv(x, edge_index)  #For GCNConv
         
         # Separate back into user and item embeddings
         users_emb, movies_emb = x[:self.num_users], x[self.num_users:]
@@ -236,8 +237,8 @@ class GCN(nn.Module):
 
         # Perform neighborhood aggregation using SAGEConv layers
         for conv in self.convs:
-            #x = F.relu(conv(x, edge_index))  #for SAGEConv
-            x = conv(x, edge_index)  #For GCNConv
+            x = F.relu(conv(x, edge_index))  #for SAGEConv
+            #x = conv(x, edge_index)  #For GCNConv
         
         # Separate back into user and item embeddings
         users_emb, movies_emb = x[:self.num_users], x[self.num_users:]

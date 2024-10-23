@@ -18,6 +18,7 @@ from sklearn.model_selection import train_test_split
 import torch
 # Importing the helper functions
 from utils import *
+import torch.nn.functional as F
 
 # Read the "movies.csv" and "ratings.csv" and store them in two dataframes. 
 
@@ -77,8 +78,8 @@ device = torch.device("cude" if torch.cuda.is_available() else "cpu")
 # Instantiate the model 
 # Choose one Model structure 
 #model = LightGCN(num_users , num_movies, hidden_dimension, num_layers)
-#model = GraphSAGEModel(num_users , num_movies, hidden_dimension, num_layers)
-model = GCN(num_users , num_movies, hidden_dimension, num_layers)
+model = GraphSAGEModel(num_users , num_movies, hidden_dimension, num_layers)
+#model = GCN(num_users , num_movies, hidden_dimension, num_layers)
 
 
 # Transfer the model and the data to the device 
@@ -173,7 +174,17 @@ print('Test loss: {:.4f}, Test recall: {:.4f}, Test precision: {:.4f}'\
 #Save the outputs to a file.
 output_files = {"num_epoch": num_epochs , "train_losses": train_losses , "val_losses":val_losses, "test_loss":loss_test,
                 "test_precisioin" : precision_test, "test_recall":recall_test}
-torch.save(output_files, "./outputs/GCN.pt")
-loaded_data = torch.load("./outputs/GCN.pt")
+torch.save(output_files, "./outputs/GraphSAGE.pt")
+
+
+#Load the data for comparison and print them out
+monitor = True 
+if monitor:
+    loaded_data_LightGCN = torch.load("./outputs/LightGCN.pt")
+    loaded_data_GCN = torch.load("./outputs/GCN.pt")
+    loaded_data_SAGE = torch.load("./outputs/GraphSAGE.pt")
+    
+    
+
 pass
     
