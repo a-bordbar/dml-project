@@ -219,7 +219,6 @@ class GCN(nn.Module):
         
         self.user_embedding = nn.Embedding(self.num_users, self.hidden_dim)
         self.movie_embedding = nn.Embedding(self.num_movies, self.hidden_dim)
-
         nn.init.normal_(self.user_embedding.weight, std=0.01)
         nn.init.normal_(self.movie_embedding.weight, std=0.01)
 
@@ -239,7 +238,6 @@ class GCN(nn.Module):
         for conv in self.convs:
             x = F.relu(conv(x, edge_index))  #for SAGEConv
             #x = conv(x, edge_index)  #For GCNConv
-        
         # Separate back into user and item embeddings
         users_emb, movies_emb = x[:self.num_users], x[self.num_users:]
         

@@ -24,11 +24,11 @@ loaded_data_SAGE = torch.load("./outputs/GraphSAGE.pt")
 
 if monitor:
     string = tt.to_string(
-    [["GCN", loaded_data_GCN["test_precisioin"].item(),  loaded_data_GCN["test_recall"].item()],
-     ["LightGCN", loaded_data_LightGCN["test_precisioin"].item(),  loaded_data_LightGCN["test_recall"].item()], 
-     ["GraphSAGE", loaded_data_SAGE["test_precisioin"].item(),  loaded_data_SAGE["test_recall"].item()]
+    [["GCN", loaded_data_GCN["test_precisioin"].item(),  loaded_data_GCN["test_recall"].item(), loaded_data_GCN["test_loss"]],
+     ["LightGCN", loaded_data_LightGCN["test_precisioin"].item(),  loaded_data_LightGCN["test_recall"].item(), loaded_data_LightGCN["test_loss"]], 
+     ["GraphSAGE", loaded_data_SAGE["test_precisioin"].item(),  loaded_data_SAGE["test_recall"].item(),  loaded_data_SAGE["test_loss"]]
      ],
-    header=["Method", "Precision", "Recall"],
+    header=["Method", "Precision", "Recall", "Loss"],
     style=tt.styles.ascii_thin_double,
     # alignment="ll",
     # padding=(0, 1),

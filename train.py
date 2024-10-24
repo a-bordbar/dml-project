@@ -177,14 +177,58 @@ output_files = {"num_epoch": num_epochs , "train_losses": train_losses , "val_lo
 torch.save(output_files, "./outputs/GCN.pt")
 
 
-#Load the data for comparison and print them out
-monitor = True 
-if monitor:
-    loaded_data_LightGCN = torch.load("./outputs/LightGCN.pt")
-    loaded_data_GCN = torch.load("./outputs/GCN.pt")
-    loaded_data_SAGE = torch.load("./outputs/GraphSAGE.pt")
+# #Load the data for comparison and print them out
+# monitor = True 
+# if monitor:
+#     loaded_data_LightGCN = torch.load("./outputs/LightGCN.pt")
+#     loaded_data_GCN = torch.load("./outputs/GCN.pt")
+#     loaded_data_SAGE = torch.load("./outputs/GraphSAGE.pt")
     
     
+def predict(user_id, topK):
+    '''
+    Make top K recommendations to the user
+    '''
+    # read movie and uesr info
+    model.eval()
+    df  = pd.read_csv("./data/movies.csv", index_col="movieId")
+    ratings_df = pd.read_csv("./data/ratings.csv")
+    movie_titles = pd.Series(df.title.values, index=df.index).to_dict()
+    movie_genres = pd.Series(df.genres.values, index=df.index).to_dict()
+    pos_items = retrieve_positive_movies(edge_index)
+    user = user_mapping[user_id]
+    user_emb = model.users_emb.weight[user]
+    scores = model.items_emb.weight @ user_emb
 
+    values, indices = torch.topk(scores, k=len(pos_items[user]) + topK)
+
+    movies = [index.cpu().item() for index in indices if index in pos_items[user]]
+    topk_movies = movies[:topK] 
+    movie_ids = [list(movie_mapping.keys())[list(movie_mapping.values())\
+                                            .index(movie)] for movie in movies]
+    titles = [movie_titles[id] for id in movie_ids]
+    genres = [movie_genres[id] for id in movie_ids]
+
+    print("User {:d} liked these movies:".format(user_id))
+    for i in range(topK):
+        print("{:s}, {:s} ".format(titles[i], genres[i]))
+
+    print('====================================================================')
+
+    movies = [index.cpu().item() for index in indices if index not in pos_items[user]]
+    topk_movies = movies[:topK] 
+    movie_ids = [list(movie_mapping.keys())[list(movie_mapping.values())\
+    .index(movie)] for movie in movies]
+    titles = [movie_titles[id] for id in movie_ids]
+    genres = [movie_genres[id] for id in movie_ids]
+
+    print("Here are the movies that we think the user will enjoy:")
+    for i in range(topK):
+        print("{:s}, {:s} ".format(titles[i], genres[i]))
+
+
+
+predict(69, 5)
+torch.save(model.state_dict(), "./GCN_saved.pt")
 pass
     
